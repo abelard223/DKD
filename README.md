@@ -1,7 +1,3 @@
-# SimKD
-
-Knowledge Distillation with the Reused Teacher Classifier (CVPR-2022) https://arxiv.org/abs/2203.14001
-
 # Toolbox for KD research
 
 This repository aims to provide a compact and easy-to-use implementation of several representative knowledge distillation approaches on standard image classification tasks (e.g., CIFAR100, ImageNet). 
@@ -12,7 +8,6 @@ This repository aims to provide a compact and easy-to-use implementation of seve
   - [x] [Vanilla KD](https://arxiv.org/abs/1503.02531), [FitNet](https://arxiv.org/abs/1412.6550) [ICLR-2015], [AT](https://arxiv.org/abs/1612.03928) [ICLR-2017], [SP](https://arxiv.org/abs/1612.03928) [CVPR-2019], [VID](https://openaccess.thecvf.com/content_CVPR_2019/papers/Ahn_Variational_Information_Distillation_for_Knowledge_Transfer_CVPR_2019_paper.pdf) [CVPR-2019]
   - [x] [CRD](https://arxiv.org/abs/1910.10699) [ICLR-2020], [SRRL](https://openreview.net/forum?id=ZzwDy_wiWv) [ICLR-2021], [SemCKD](https://arxiv.org/abs/2012.03236) [AAAI-2021]
   - [ ] KR [CVPR-2021]
-  - [x] [SimKD](https://arxiv.org/abs/2203.14001) [CVPR-2022] 
 
 - This toolbox is built on a [open-source benchmark](https://github.com/HobbitLong/RepDistiller) and our [previous repository](https://github.com/DefangChen/SemCKD). The implementation of more KD approaches can be found there.
 
@@ -60,9 +55,6 @@ More scripts are provided in `./scripts`
 | CRD    | 75.59 | 73.54 | 77.66 |
 | SRRL   | 75.39 | 73.23 | 77.55 |
 | SemCKD | 76.23 | 75.27 | 79.13 |
-| SimKD (f=8) | **76.73** | 74.74 | 78.96|
-| SimKD (f=4) | **77.88** | **75.62** | **79.48**|
-| SimKD (f=2) | **78.08** | **75.76** | **79.54** |
 | **Teacher (ResNet-32x4)** | 79.42 | 79.42 | 79.42 |
 
 
@@ -74,15 +66,6 @@ More scripts are provided in `./scripts`
 ## Citation
 If you find this repository useful, please consider citing the following paper:
 
-
-```
-@article{chen2022simkd,
-  title={Knowledge Distillation with the Reused Teacher Classifier},
-  author={Chen, Defang and Mei, Jian-Ping and Zhang, Hailin and Wang, Can and Feng, Yan and Chen, Chun},
-  journal={arXiv preprint arXiv:2203.14001},
-  year={2022}
-}
-```
 ```
 @inproceedings{chen2021cross,
   author    = {Defang Chen and Jian{-}Ping Mei and Yuan Zhang and Can Wang and Zhe Wang and Yan Feng and Chun Chen},

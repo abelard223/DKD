@@ -4,6 +4,7 @@ import json
 import torch
 import numpy as np
 import torch.distributed as dist
+import os, logging
 
 def adjust_learning_rate(epoch, opt, optimizer):
     """Sets the learning rate to the initial LR decayed by decay rate every steep step"""
@@ -13,6 +14,21 @@ def adjust_learning_rate(epoch, opt, optimizer):
         for param_group in optimizer.param_groups:
             param_group['lr'] = new_lr
 
+def set_logging_defaults(logdir, args):
+    if not os.path.exists(logdir):
+        os.makedirs(logdir)
+        print('Experiment dir : {}'.format(logdir))
+        
+    # set basic configuration for logging
+    logging.basicConfig(format="[%(asctime)s] [%(name)s] %(message)s",
+                        level=logging.INFO,
+                        handlers = [logging.FileHandler(os.path.join(logdir, 'log.txt')),
+                                    logging.StreamHandler(os.sys.stdout)])
+    
+    # log cmd arguments
+    logger = logging.getLogger('main')
+    logger.info(' '.join(os.sys.argv))
+    logger.info(args)
 # def adjust_learning_rate(optimizer, epoch, step, len_epoch, old_lr):
 #     """Sets the learning rate to the initial LR decayed by decay rate every steep step"""
 #     if epoch < 5:

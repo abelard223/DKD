@@ -19,17 +19,17 @@ import torch.backends.cudnn as cudnn
 import tensorboard_logger as tb_logger
 
 from models import model_dict
-from models.util import ConvReg, SelfA, SRRL, SimKD
+from models.util import ConvReg, SelfA, SRRL, SimKD, CSRR
 
 from dataset.cifar100 import get_cifar100_dataloaders, get_cifar100_dataloaders_sample
 from dataset.imagenet import get_imagenet_dataloader,  get_dataloader_sample
 from dataset.imagenet_dali import get_dali_data_loader
 
 from helper.loops import train_distill as train, validate_vanilla, validate_distill
-from helper.util import save_dict_to_json, reduce_tensor, adjust_learning_rate
+from helper.util import save_dict_to_json, reduce_tensor, adjust_learning_rate, set_logging_defaults
 
 from crd.criterion import CRDLoss
-from distiller_zoo import DistillKL, HintLoss, Attention, Similarity, VIDLoss, SemCKDLoss
+from distiller_zoo import DistillKL, HintLoss, Attention, Similarity, VIDLoss, SemCKDLoss, ICKDLoss, RAKDLoss, FTLoss, DoubleDistillKL
 
 split_symbol = '~' if os.name == 'nt' else ':'
 
@@ -60,18 +60,21 @@ def parse_option():
     parser.add_argument('--trial', type=str, default='1', help='trial id')
     parser.add_argument('--kd_T', type=float, default=4, help='temperature for KD distillation')
     parser.add_argument('--distill', type=str, default='kd', choices=['kd', 'hint', 'attention', 'similarity', 'vid',
-                                                                      'crd', 'semckd','srrl', 'simkd'])
+                                                                      'crd', 'semckd','srrl', 'simkd', 'ickd', 'cwkd', 'dkd'])
     parser.add_argument('-c', '--cls', type=float, default=1.0, help='weight for classification')
     parser.add_argument('-d', '--div', type=float, default=1.0, help='weight balance for KD')
     parser.add_argument('-b', '--beta', type=float, default=0.0, help='weight balance for other losses')
     parser.add_argument('-f', '--factor', type=int, default=2, help='factor size of SimKD')
     parser.add_argument('-s', '--soft', type=float, default=1.0, help='attention scale of SemCKD')
+    parser.add_argument('-l', '--lamda', type=float, default=1.0, help='attention scale of SemCKD')
+    
 
     # hint layer
     parser.add_argument('--hint_layer', default=1, type=int, choices=[0, 1, 2, 3, 4])
 
     # NCE distillation
     parser.add_argument('--feat_dim', default=128, type=int, help='feature dimension')
+    parser.add_argument('--n_clusters', default=128, type=int, help='cluster classes')
     parser.add_argument('--mode', default='exact', type=str, choices=['exact', 'relax'])
     parser.add_argument('--nce_k', default=16384, type=int, help='number of negative samples for NCE')
     parser.add_argument('--nce_t', default=0.07, type=float, help='temperature parameter for softmax')
@@ -120,7 +123,6 @@ def parse_option():
     opt.save_folder = os.path.join(opt.model_path, opt.model_name)
     if not os.path.isdir(opt.save_folder):
         os.makedirs(opt.save_folder)
-    
     return opt
 
 def get_teacher_name(model_path):
@@ -222,6 +224,8 @@ def main_worker(gpu, ngpus_per_node, opt):
     criterion_div = DistillKL(opt.kd_T)
     if opt.distill == 'kd':
         criterion_kd = DistillKL(opt.kd_T)
+    elif opt.distill == 'dkd':
+        criterion_kd = DoubleDistillKL(opt.kd_T)
     elif opt.distill == 'hint':
         criterion_kd = HintLoss()
         regress_s = ConvReg(feat_s[opt.hint_layer].shape, feat_t[opt.hint_layer].shape)
@@ -239,6 +243,21 @@ def main_worker(gpu, ngpus_per_node, opt):
         )
         # add this as some parameters in VIDLoss need to be updated
         trainable_list.append(criterion_kd)
+    elif opt.distill == 'ickd':
+        opt.s_dim = feat_s[-2].shape[1]
+        opt.t_dim = feat_t[-2].shape[1]
+        opt.feat_dim = opt.t_dim
+        criterion_kd = ICKDLoss(opt)
+        module_list.append(criterion_kd.embed_s)
+        module_list.append(criterion_kd.embed_t)
+        trainable_list.append(criterion_kd.embed_s)
+        trainable_list.append(criterion_kd.embed_t)
+    elif opt.distill == 'rakd':
+        opt.s_dim = feat_s[-1].shape[1]
+        opt.t_dim = n_cls
+        criterion_kd = RAKDLoss(opt)
+        module_list.append(criterion_kd.embed)
+        trainable_list.append(criterion_kd.embed)
     elif opt.distill == 'crd':
         opt.s_dim = feat_s[-1].shape[1]
         opt.t_dim = feat_t[-1].shape[1]
@@ -258,6 +277,23 @@ def main_worker(gpu, ngpus_per_node, opt):
         self_attention = SelfA(opt.batch_size, s_n, t_n, opt.soft)    
         module_list.append(self_attention)
         trainable_list.append(self_attention)
+    elif opt.distill == 'ickd':
+        opt.s_dim = feat_s[-2].shape[1]
+        opt.t_dim = feat_t[-2].shape[1]
+        opt.feat_dim = opt.t_dim
+        criterion_kd = ICKDLoss(opt)
+        module_list.append(criterion_kd.embed_s)
+        module_list.append(criterion_kd.embed_t)
+        trainable_list.append(criterion_kd.embed_s)
+        trainable_list.append(criterion_kd.embed_t)
+    elif opt.distill == 'cwkd':
+        s_n = feat_s[-1].shape[1]
+        t_n = feat_t[-1].shape[1]
+        n_clu = opt.n_clusters
+        model_cw = CSRR(s_n=s_n, t_n=t_n, n_clu=n_clu)
+        criterion_kd = FTLoss() 
+        module_list.append(model_cw)
+        trainable_list.append(model_cw)
     elif opt.distill == 'srrl':
         s_n = feat_s[-1].shape[1]
         t_n = feat_t[-1].shape[1]

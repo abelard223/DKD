@@ -160,6 +160,38 @@ class Normalize(nn.Module):
         norm = x.pow(self.power).sum(1, keepdim=True).pow(1. / self.power)
         out = x.div(norm)
         return out
+    
+class CSRR(nn.Module):
+    def __init__(self, *, s_n, t_n, n_clu):
+        super(CSRR, self).__init__()
+        
+        def conv1x1(in_channels, out_channels, stride=1):
+            return nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0, stride=stride, bias=False)
+        
+        setattr(self, 'transfer', nn.Sequential(
+            conv1x1(s_n, t_n),
+            nn.BatchNorm2d(t_n),
+            nn.ReLU(inplace=True),
+        ))
+        
+        setattr(self, 'cluster', nn.Sequential(
+            nn.Linear(t_n, t_n),
+            nn.ReLU(),
+            nn.Linear(t_n, n_clu), 
+        ))
+        
+        
+    def forward(self, feat_s, feat_t, cls_t):
+        feat_s = feat_s.unsqueeze(-1).unsqueeze(-1)
+        temp_feat = self.transfer(feat_s)
+        trans_feat_s = temp_feat.view(temp_feat.size(0), -1)
+        
+        clu_t = self.cluster(feat_t)
+        clu_s = self.cluster(trans_feat_s)
+        
+        pred_feat_s=cls_t(trans_feat_s)
+        
+        return trans_feat_s, pred_feat_s, clu_t, clu_s
 
 class SRRL(nn.Module):
     """ICLR-2021: Knowledge Distillation via Softmax Regression Representation Learning"""

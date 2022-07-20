@@ -118,6 +118,9 @@ def train_distill(epoch, train_loader, module_list, criterion_list, optimizer, o
         # other kd loss
         if opt.distill == 'kd':
             loss_kd = 0
+        elif opt.distill == 'dkd':
+            loss_kd = criterion_kd(logit_s, logit_t)
+            loss_div = 0
         elif opt.distill == 'hint':
             f_s, f_t = module_list[1](feat_s[opt.hint_layer], feat_t[opt.hint_layer])
             loss_kd = criterion_kd(f_s, f_t)
@@ -127,11 +130,14 @@ def train_distill(epoch, train_loader, module_list, criterion_list, optimizer, o
             g_t = feat_t[1:-1]
             loss_group = criterion_kd(g_s, g_t)
             loss_kd = sum(loss_group)
-        elif opt.distill == 'similarity':
+        elif opt.distill == 'similarity' or opt.distill == 'ickd':
             g_s = [feat_s[-2]]
             g_t = [feat_t[-2]]
             loss_group = criterion_kd(g_s, g_t)
             loss_kd = sum(loss_group)
+        elif opt.distill == 'rakd':
+            f_s = feat_s[-2]
+            loss_kd = criterion_kd(f_s, logit_s, logit_t)
         elif opt.distill == 'vid':
             g_s = feat_s[1:-1]
             g_t = feat_t[1:-1]
@@ -147,6 +153,9 @@ def train_distill(epoch, train_loader, module_list, criterion_list, optimizer, o
         elif opt.distill == 'srrl':
             trans_feat_s, pred_feat_s = module_list[1](feat_s[-1], cls_t)
             loss_kd = criterion_kd(trans_feat_s, feat_t[-1]) + criterion_kd(pred_feat_s, logit_t)
+        elif opt.distill == 'cwkd':
+            trans_feat_s, pred_feat_s, clu_t, clu_s = module_list[1](feat_s[-2], feat_t[-2], cls_t)
+            loss_kd = criterion_kd(trans_feat_s, feat_t[-1]) + criterion_kd(pred_feat_s, logit_t) + opt.l*criterion_kd(clu_s, clu_t)
         elif opt.distill == 'simkd':
             trans_feat_s, trans_feat_t, pred_feat_s = module_list[1](feat_s[-2], feat_t[-2], cls_t)
             logit_s = pred_feat_s
